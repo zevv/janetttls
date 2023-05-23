@@ -1,31 +1,54 @@
 
 (import /build/sslapi :as sslapi)
 
-(varfn read [ssl] 0)
+(def cert (slurp "cert.pem"))
+(def key (slurp "key.pem"))
 
-(defn write [ssl data]
-  (def r (sslapi/write (ssl :sslsock) data))
+(varfn ssl-read [stream] 0)
+
+(defn ssl-write [stream data &opt timeout]
+  (def r (sslapi/write (stream :ssl) data))
   (case r
-    :want-read (do (:read (ssl :sock) 0) (write ssl data))
-    :want-write (do (:write (ssl :sock) "") (write ssl data)
+    :want-read (do (:read (stream :sock) 0) (ssl-write stream data timeout))
+    :want-write (do (:write (stream :sock) "") (ssl-write stream data timeout)
     r)))
 
-(varfn read [ssl]
-  (def buffer (buffer/new 1024))
-  (def r (sslapi/read (ssl :sslsock) buffer))
+(varfn ssl-read [stream count &opt buffer timeout]
+  (default buffer (buffer/new count))
+  (def r (sslapi/read (stream :ssl) buffer count))
   (case r
-    :want-read (do (:read (ssl :sock) 0) (read ssl))
-    :want-write (do (:write (ssl :sock) "") (read ssl))
+    :syscall (do (print "syscall error") (os/exit 1))
+    :want-read (do (:read (stream :sock) 0) (ssl-read stream count buffer timeout))
+    :want-write (do (:write (stream :sock) "") (ssl-read stream count buffer timeout))
     buffer))
 
+(defn ssl-close [stream]
+  (sslapi/close (stream :ssl))
+  (:close (stream :sock)))
 
 (def- ssl-proto @{
-  :write write
-  :read read
+  :write ssl-write
+  :read ssl-read
+  :close ssl-close
 })
 
-(defn connect [host port]
-  (def sock (net/connect host port))
-  (def sslsock (sslapi/set-ssl sock))
-  (table/setproto ssl-proto @{ :sock sock :sslsock sslsock }))
+(defn- wrap [sock &opt state]
+  (def stream @{ :sock sock :read ssl-read :write ssl-write :close ssl-close})
+  (if state
+    (set (stream :ssl) (sslapi/set-ssl sock state "" (string cert) (string key))))
+  stream)
+
+
+(defn listen [& args]
+  (wrap (net/listen ;args)))
+
+(defn accept [stream]
+  (printf "Accept on %p" (stream :sock))
+  (def client-sock (net/accept (stream :sock)))
+  (def stream (wrap client-sock :accept))
+  stream)
+
+(defn connect [& args]
+  (def stream (wrap (net/connect ;args) :connect))
+  stream)
 

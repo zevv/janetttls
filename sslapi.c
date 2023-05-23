@@ -12,23 +12,74 @@ struct sslsock {
 };
 
 
+#define CHECK_SSL(expr, msg) if(!(expr)) janet_panicf("error %s :%s\n", msg, ERR_reason_error_string(ERR_get_error()));
+
 static Janet sslapi_set_ssl(int32_t argc, Janet *argv)
 {
-    janet_fixarity(argc, 1);
+    static int initialized = 0;
+    if(!initialized) {
+        SSL_library_init();
+        SSL_load_error_strings();
+        OpenSSL_add_all_algorithms();
+        initialized = 1;
+    }
+
     JanetStream *stream = janet_getabstract(argv, 0, &janet_stream_type);
+    const char *state = janet_getkeyword(argv, 1);
+    const char *cert = janet_optcstring(argv, argc, 3, NULL);
+    const char *ca = janet_optcstring(argv, argc, 2, NULL);
+    const char *key = janet_optcstring(argv, argc, 4, NULL);
 
-    SSL_library_init();
-    SSL_load_error_strings();
-    OpenSSL_add_all_algorithms();
-
+    janet_arity(argc, 2, 5);
     struct sslsock *ss = malloc(sizeof(struct sslsock));
     ss->stream = stream;
-    ss->ctx = SSL_CTX_new(SSLv23_client_method());
-    ss->ssl = SSL_new(ss->ctx);
+    ss->ctx = SSL_CTX_new(TLS_method());
+
+    if(ca && *ca) {
+        BIO *bio = BIO_new_mem_buf((char *)ca, -1);
+        X509 *x = PEM_read_bio_X509(bio ,NULL, NULL, NULL);
+        BIO_free(bio);
+        CHECK_SSL(x != NULL, "reading ca");
+        X509_STORE* store = SSL_CTX_get_cert_store(ss->ctx);
+        int r = X509_STORE_add_cert(store, x);
+        X509_free(x);
+        CHECK_SSL(r == 1, "reading ca");
+    } else {
+        int r = SSL_CTX_load_verify_locations(ss->ctx, NULL, "/etc/ssl/certs");
+        CHECK_SSL(r == 1, "Error reading CA");
+    }
+
+    if(cert) {
+        BIO *bio = BIO_new_mem_buf((char *)cert, -1);
+        X509 *x = PEM_read_bio_X509(bio ,NULL, NULL, NULL);
+        BIO_free(bio);
+        CHECK_SSL(x != NULL, "reading cert");
+        int r = SSL_CTX_use_certificate(ss->ctx, x);
+        X509_free(x);
+        CHECK_SSL(r == 1, "reading cert");
+    }
+
+    if(key) {
+        BIO *bio = BIO_new_mem_buf((char *)key, -1);
+        EVP_PKEY *pkey = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
+        BIO_free(bio);
+        CHECK_SSL(pkey != NULL, "reading private key");
+        int r = SSL_CTX_use_PrivateKey(ss->ctx, pkey);
+        EVP_PKEY_free(pkey);
+        CHECK_SSL(r == 1, "reading private key");
+    }
 
     SSL_CTX_set_session_id_context(ss->ctx, (const unsigned char *)"janet", 5);
+
+    ss->ssl = SSL_new(ss->ctx);
     SSL_set_fd(ss->ssl, stream->handle);
-    SSL_set_connect_state(ss->ssl);
+
+    if(strcmp(state, "connect") == 0) {
+        SSL_set_connect_state(ss->ssl);
+    }
+    if(strcmp(state, "accept") == 0) {
+        SSL_set_accept_state(ss->ssl);
+    }
 
     return janet_wrap_pointer(ss);
 }
@@ -41,7 +92,7 @@ static Janet handle_ssl_error(struct sslsock *ss, int r)
     if(e == SSL_ERROR_WANT_WRITE) return janet_ckeywordv("want-write");
     if(e == SSL_ERROR_SYSCALL) return janet_ckeywordv("syscall");
     e = ERR_get_error();
-    return janet_wrap_string(ERR_reason_error_string(r));
+    return janet_wrap_string(janet_cstring(ERR_reason_error_string(e)));
 }
 
 
@@ -51,24 +102,38 @@ static Janet sslapi_write(int32_t argc, Janet *argv)
     struct sslsock *ss = janet_getpointer(argv, 0);
     JanetByteView view = janet_getbytes(argv, 1);
     int r = SSL_write(ss->ssl, view.bytes, view.len);
-    if(r < 0) {
+    if(r > 0)  {
+        return janet_wrap_integer(r);
+    } else {
         return handle_ssl_error(ss, r);
     }
-    return janet_wrap_integer(r);
 }
 
 
 static Janet sslapi_read(int32_t argc, Janet *argv)
 {
-    janet_fixarity(argc, 2);
+    janet_fixarity(argc, 3);
     struct sslsock *ss = janet_getpointer(argv, 0);
     JanetBuffer *buffer = janet_getbuffer(argv, 1);
-    int r = SSL_read(ss->ssl, buffer->data, buffer->capacity);
-    if(r < 0) {
+    int count = janet_getinteger(argv, 2);
+    janet_buffer_extra(buffer, count);
+    int r = SSL_read(ss->ssl, buffer->data + buffer->count, count);
+    if(r > 0) {
+        buffer->count += r;
+        return janet_wrap_integer(r);
+    } else {
         return handle_ssl_error(ss, r);
-    } 
-    buffer->count = r;
-    return janet_wrap_integer(r);
+    }
+}
+
+
+static Janet sslapi_close(int32_t argc, Janet *argv)
+{
+    janet_fixarity(argc, 1);
+    struct sslsock *ss = janet_getpointer(argv, 0);
+    SSL_free(ss->ssl);
+    SSL_CTX_free(ss->ctx);
+    return janet_wrap_nil();
 }
 
 
@@ -76,12 +141,13 @@ static const JanetReg cfuns[] = {
     {"set-ssl", sslapi_set_ssl, "(sslapi/set_ssl)"},
     {"write", sslapi_write, "(sslapi/write)"},
     {"read", sslapi_read, "(sslapi/read)"},
+    {"close", sslapi_close, "(sslapi/close)"},
     {NULL, NULL, NULL}
 };
 
 
 JANET_MODULE_ENTRY(JanetTable *env) {
-    janet_cfuns(env, "mymod", cfuns);
+    janet_cfuns(env, "sslapi", cfuns);
 }
 
 

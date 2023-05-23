@@ -1,30 +1,19 @@
 #!/usr/bin/env janet
 
 (import ./ssl)
+(import spork/http)
 
-(def req "
-GET /div/slow.cgi HTTP/1.0\r\n
-Host: zevv.nl\r\n
-\r\n
-")
 
-(pp req)
+(defn server-handler [req]
+  {:status 200 
+   :headers {"Content-Type" "text/plain"} 
+   :body "Hello, World!\r\n"})
 
-(defn hello []
-  (def sock (ssl/connect "zevv.nl" "https"))
-  (def r (:write sock req))
+(defn server []
+  (def sock (ssl/listen "::" "8081"))
   (forever 
-    (def b (:read sock))
-    (if (empty? b) (break))
-    (print b))
-  (print "done"))
+    (def client (ssl/accept sock))
+    (http/server-handler client server-handler)
+    ))
 
-
-
-(defn ticks []
-  (forever
-    (print "tick")
-    (ev/sleep 0.1)))
-
-(ev/call ticks)
-(ev/call hello)
+(ev/call server)
