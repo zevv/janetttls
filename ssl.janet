@@ -9,7 +9,7 @@
   (case result
     :want-read (do (:read (stream :sock) 0) (ssl-pump f stream ;args))
     :want-write (do (:write (stream :sock) "") (ssl-pump f stream ;args))
-    :syscall (do (print "syscall error") (os/exit 1))
+    :syscall (error "syscall error")
     result))
 
 (defn read [stream & args]
