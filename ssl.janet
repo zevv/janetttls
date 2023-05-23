@@ -42,12 +42,12 @@
 
 # Public API
 
+(defn connect [& args]
+  (wrap-stream (net/connect ;args) :client))
+
 (defn listen [& args]
   (wrap-stream (net/listen ;args)))
 
 (defn accept [stream cert key]
   (wrap-stream (net/accept (stream :sock)) :server cert key))
-
-(defn connect [& args]
-  (wrap-stream (net/connect ;args) :client))
 
