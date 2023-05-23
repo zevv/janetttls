@@ -6,7 +6,6 @@
 
 (defn server-handler [req]
   (printf "Got request: %m" req)
-  (ev/sleep 1)
   {:status 200 
    :headers {"Content-Type" "text/plain"} 
    :body "Hello, World!\r\n"})
@@ -17,8 +16,7 @@
   (def sock (ssl/listen addr port))
   (forever 
     (def client (ssl/accept sock cert key))
-    (ev/call (fn [] 
-      (try
+    (ev/call (fn [] (try
         (http/server-handler client server-handler)
         ([err fib] (print "Error: " err)))))))
 

@@ -12,24 +12,24 @@
     :syscall (do (print "syscall error") (os/exit 1))
     result))
 
-(defn- ssl-read [stream & args]
+(defn read [stream & args]
   (ssl-handler sslapi/read stream ;args))
 
-(defn- ssl-chunk [stream & args]
+(defn chunk [stream & args]
   (ssl-handler sslapi/read stream ;args))
 
-(defn- ssl-write [stream & args]
+(defn write [stream & args]
   (ssl-handler sslapi/write stream ;args))
 
-(defn- ssl-close [stream]
+(defn close [stream]
   (sslapi/close (stream :ssl))
   (:close (stream :sock)))
 
 (def- ssl-proto @{
-  :read ssl-read
-  :chunk ssl-chunk
-  :write ssl-write
-  :close ssl-close
+  :read read
+  :chunk chunk
+  :write write
+  :close close
 })
 
 # Wrap a net/stream in an ssl/stream
