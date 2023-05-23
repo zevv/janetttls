@@ -26,17 +26,17 @@ static Janet sslapi_set_ssl(int32_t argc, Janet *argv)
 
     JanetStream *stream = janet_getabstract(argv, 0, &janet_stream_type);
     const char *state = janet_getkeyword(argv, 1);
-    const char *cert = janet_optcstring(argv, argc, 3, NULL);
-    const char *ca = janet_optcstring(argv, argc, 2, NULL);
-    const char *key = janet_optcstring(argv, argc, 4, NULL);
+    JanetBuffer *ca = janet_optbuffer(argv, argc, 2, 0);
+    JanetBuffer *cert = janet_optbuffer(argv, argc, 3, 0);
+    JanetBuffer *key = janet_optbuffer(argv, argc, 4, 0);
 
     janet_arity(argc, 2, 5);
     struct sslsock *ss = malloc(sizeof(struct sslsock));
     ss->stream = stream;
     ss->ctx = SSL_CTX_new(TLS_method());
 
-    if(ca && *ca) {
-        BIO *bio = BIO_new_mem_buf((char *)ca, -1);
+    if(ca->count > 0) {
+        BIO *bio = BIO_new_mem_buf(ca->data, -1);
         X509 *x = PEM_read_bio_X509(bio ,NULL, NULL, NULL);
         BIO_free(bio);
         CHECK_SSL(x != NULL, "reading ca");
@@ -49,8 +49,8 @@ static Janet sslapi_set_ssl(int32_t argc, Janet *argv)
         CHECK_SSL(r == 1, "Error reading CA");
     }
 
-    if(cert) {
-        BIO *bio = BIO_new_mem_buf((char *)cert, -1);
+    if(cert->count > 0) {
+        BIO *bio = BIO_new_mem_buf(cert->data, -1);
         X509 *x = PEM_read_bio_X509(bio ,NULL, NULL, NULL);
         BIO_free(bio);
         CHECK_SSL(x != NULL, "reading cert");
@@ -59,8 +59,8 @@ static Janet sslapi_set_ssl(int32_t argc, Janet *argv)
         CHECK_SSL(r == 1, "reading cert");
     }
 
-    if(key) {
-        BIO *bio = BIO_new_mem_buf((char *)key, -1);
+    if(key->count > 0) {
+        BIO *bio = BIO_new_mem_buf(key->data, -1);
         EVP_PKEY *pkey = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
         BIO_free(bio);
         CHECK_SSL(pkey != NULL, "reading private key");
@@ -114,8 +114,8 @@ static Janet sslapi_read(int32_t argc, Janet *argv)
 {
     janet_fixarity(argc, 3);
     struct sslsock *ss = janet_getpointer(argv, 0);
-    JanetBuffer *buffer = janet_getbuffer(argv, 1);
-    int count = janet_getinteger(argv, 2);
+    int count = janet_getinteger(argv, 1);
+    JanetBuffer *buffer = janet_getbuffer(argv, 2);
     janet_buffer_extra(buffer, count);
     int r = SSL_read(ss->ssl, buffer->data + buffer->count, count);
     if(r > 0) {
