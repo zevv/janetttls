@@ -15,8 +15,17 @@
   (def sock (ssl/listen addr port))
   (forever 
     (def client (ssl/accept sock cert key))
-    (http/server-handler client server-handler)
-    ))
+    (try
+      (http/server-handler client server-handler)
+      ([err fib] (print "Error: " err)))))
+
+
+(defn ticks []
+  (forever
+    (print "tick")
+    (ev/sleep 0.1)))
+
+#(ev/call ticks)
 
 
 (def cert (slurp "cert.pem"))

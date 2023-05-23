@@ -5,14 +5,17 @@
 # here by doing 0-byte net/read and net/write on the underlying socket.
 
 (defn- ssl-handler [f stream & args]
-  (def r (f (stream :ssl) ;args))
-  (case r
-    :syscall (do (print "syscall error") (os/exit 1))
+  (def result (f (stream :ssl) ;args))
+  (case result
     :want-read (do (:read (stream :sock) 0) (ssl-handler f stream ;args))
     :want-write (do (:write (stream :sock) "") (ssl-handler f stream ;args))
-    buffer))
+    :syscall (do (print "syscall error") (os/exit 1))
+    result))
 
 (defn- ssl-read [stream & args]
+  (ssl-handler sslapi/read stream ;args))
+
+(defn- ssl-chunk [stream & args]
   (ssl-handler sslapi/read stream ;args))
 
 (defn- ssl-write [stream & args]
@@ -23,15 +26,16 @@
   (:close (stream :sock)))
 
 (def- ssl-proto @{
-  :write ssl-write
   :read ssl-read
+  :chunk ssl-chunk
+  :write ssl-write
   :close ssl-close
 })
 
 # Wrap a net/stream in an ssl/stream
 
 (defn- wrap-stream [sock &opt state cert key]
-  (def stream @{ :sock sock :read ssl-read :write ssl-write :close ssl-close})
+  (def stream (table/setproto @{ :sock sock } ssl-proto))
   (if state
     (set (stream :ssl) (sslapi/set-ssl sock state nil cert key)))
   stream)

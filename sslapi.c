@@ -36,7 +36,7 @@ static Janet sslapi_set_ssl(int32_t argc, Janet *argv)
     ss->ctx = SSL_CTX_new(TLS_method());
 
     if(ca->count > 0) {
-        BIO *bio = BIO_new_mem_buf(ca->data, -1);
+        BIO *bio = BIO_new_mem_buf(ca->data, ca->count);
         X509 *x = PEM_read_bio_X509(bio ,NULL, NULL, NULL);
         BIO_free(bio);
         CHECK_SSL(x != NULL, "reading ca");
@@ -50,7 +50,7 @@ static Janet sslapi_set_ssl(int32_t argc, Janet *argv)
     }
 
     if(cert->count > 0) {
-        BIO *bio = BIO_new_mem_buf(cert->data, -1);
+        BIO *bio = BIO_new_mem_buf(cert->data, cert->count);
         X509 *x = PEM_read_bio_X509(bio ,NULL, NULL, NULL);
         BIO_free(bio);
         CHECK_SSL(x != NULL, "reading cert");
@@ -60,7 +60,7 @@ static Janet sslapi_set_ssl(int32_t argc, Janet *argv)
     }
 
     if(key->count > 0) {
-        BIO *bio = BIO_new_mem_buf(key->data, -1);
+        BIO *bio = BIO_new_mem_buf(key->data, key->count);
         EVP_PKEY *pkey = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
         BIO_free(bio);
         CHECK_SSL(pkey != NULL, "reading private key");
@@ -92,7 +92,12 @@ static Janet handle_ssl_error(struct sslsock *ss, int r)
     if(e == SSL_ERROR_WANT_WRITE) return janet_ckeywordv("want-write");
     if(e == SSL_ERROR_SYSCALL) return janet_ckeywordv("syscall");
     e = ERR_get_error();
-    return janet_wrap_string(janet_cstring(ERR_reason_error_string(e)));
+    if(e > 0) {
+        janet_panicf("SSL error: %s", janet_cstring(ERR_reason_error_string(e)));
+    } else {
+        janet_panicf("SSL error: unknown error");
+    }
+    return janet_wrap_nil();
 }
 
 
@@ -103,7 +108,7 @@ static Janet sslapi_write(int32_t argc, Janet *argv)
     JanetByteView view = janet_getbytes(argv, 1);
     int r = SSL_write(ss->ssl, view.bytes, view.len);
     if(r > 0)  {
-        return janet_wrap_integer(r);
+        return janet_wrap_nil();
     } else {
         return handle_ssl_error(ss, r);
     }
@@ -120,7 +125,7 @@ static Janet sslapi_read(int32_t argc, Janet *argv)
     int r = SSL_read(ss->ssl, buffer->data + buffer->count, count);
     if(r > 0) {
         buffer->count += r;
-        return janet_wrap_integer(r);
+        return janet_wrap_buffer(buffer);
     } else {
         return handle_ssl_error(ss, r);
     }
