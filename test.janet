@@ -16,7 +16,8 @@ Host: zevv.nl\r\n
   (forever 
     (def b (:read sock))
     (if (empty? b) (break))
-    (print b)))
+    (print b))
+  (print "done"))
 
 
 
