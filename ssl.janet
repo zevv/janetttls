@@ -4,22 +4,22 @@
 # Pump underlying SSL call until it is satisfied; the event queue is abused
 # here by doing 0-byte net/read and net/write on the underlying socket.
 
-(defn- ssl-handler [f stream & args]
+(defn- ssl-pump [f stream & args]
   (def result (f (stream :ssl) ;args))
   (case result
-    :want-read (do (:read (stream :sock) 0) (ssl-handler f stream ;args))
-    :want-write (do (:write (stream :sock) "") (ssl-handler f stream ;args))
+    :want-read (do (:read (stream :sock) 0) (ssl-pump f stream ;args))
+    :want-write (do (:write (stream :sock) "") (ssl-pump f stream ;args))
     :syscall (do (print "syscall error") (os/exit 1))
     result))
 
 (defn read [stream & args]
-  (ssl-handler sslapi/read stream ;args))
+  (ssl-pump sslapi/read stream ;args))
 
 (defn chunk [stream & args]
-  (ssl-handler sslapi/read stream ;args))
+  (ssl-pump sslapi/read stream ;args))
 
 (defn write [stream & args]
-  (ssl-handler sslapi/write stream ;args))
+  (ssl-pump sslapi/write stream ;args))
 
 (defn close [stream]
   (sslapi/close (stream :ssl))
