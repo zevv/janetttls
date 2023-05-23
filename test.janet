@@ -20,6 +20,14 @@
         (http/server-handler client server-handler)
         ([err fib] (print "Error: " err)))))))
 
+(defn client [addr port]
+  (ev/sleep 0.5)
+  (def sock (ssl/connect addr port))
+  (def req "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
+  (:write sock req)
+  (def resp (:read sock 4096 @""))
+  (printf "Got response: %m" resp)
+  (ssl/close sock))
 
 (defn ticks []
   (forever
@@ -33,3 +41,5 @@
 (def key (slurp "key.pem"))
 
 (ev/call (fn [] (server "::" "8080" cert key)))
+(ev/call (fn [] (client "localhost" "8080")))
+

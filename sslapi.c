@@ -6,7 +6,6 @@
 #include <janet.h>
 
 struct sslsock {
-    JanetStream *stream;
     SSL_CTX *ctx;
     SSL *ssl;
 };
@@ -32,7 +31,6 @@ static Janet sslapi_set_ssl(int32_t argc, Janet *argv)
 
     janet_arity(argc, 2, 5);
     struct sslsock *ss = malloc(sizeof(struct sslsock));
-    ss->stream = stream;
     ss->ctx = SSL_CTX_new(TLS_method());
 
     if(ca->count > 0) {
@@ -74,10 +72,10 @@ static Janet sslapi_set_ssl(int32_t argc, Janet *argv)
     ss->ssl = SSL_new(ss->ctx);
     SSL_set_fd(ss->ssl, stream->handle);
 
-    if(strcmp(state, "connect") == 0) {
+    if(strcmp(state, "client") == 0) {
         SSL_set_connect_state(ss->ssl);
     }
-    if(strcmp(state, "accept") == 0) {
+    if(strcmp(state, "server") == 0) {
         SSL_set_accept_state(ss->ssl);
     }
 

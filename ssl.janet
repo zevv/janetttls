@@ -47,10 +47,10 @@
 
 (defn accept [stream cert key]
   (def client-sock (net/accept (stream :sock)))
-  (def stream (wrap-stream client-sock :accept cert key))
+  (def stream (wrap-stream client-sock :server cert key))
   stream)
 
 (defn connect [& args]
-  (def stream (wrap-stream (net/connect ;args) :connect))
+  (def stream (wrap-stream (net/connect ;args) :client))
   stream)
 
