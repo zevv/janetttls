@@ -1,14 +1,6 @@
 #!/usr/bin/env janet
 
 (import ./ssl)
-(import spork/http)
-
-
-(defn server-handler [req]
-  (printf "Got request: %m" req)
-  {:status 200 
-   :headers {"Content-Type" "text/plain"} 
-   :body "Hello, World!\r\n"})
 
 
 (defn server [addr port cert key]
@@ -16,25 +8,24 @@
   (def sock (ssl/listen addr port))
   (forever 
     (def client (ssl/accept sock cert key))
-    (ev/call (fn [] (try
-        (http/server-handler client server-handler)
-        ([err fib] (print "Error: " err)))))))
+    (ev/call (fn []
+        (print (:read client 4096 @""))
+        (:write client "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nHello, World!\r\n")
+        (print "ticking")
+        (for i 1 10
+          (ev/sleep 0.25)
+          (:write client (string "Tick " i "\r\n")))
+        (print "closing")
+        (:close client)))))
 
 (defn client [addr port]
   (ev/sleep 0.5)
   (def sock (ssl/connect addr port))
-  (def req "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
-  (:write sock req)
-  (def resp (:read sock 4096 @""))
-  (printf "Got response: %m" resp)
+  (:write sock "GET / HTTP/1.1\r\n\r\n")
+  (protect (while
+      (def resp (:read sock 4096 @""))
+      (printf "Got response: %m" resp)))
   (ssl/close sock))
-
-(defn ticks []
-  (forever
-    (print "tick")
-    (ev/sleep 0.1)))
-
-#(ev/call ticks)
 
 
 (def cert (slurp "cert.pem"))

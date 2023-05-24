@@ -10,9 +10,3 @@ Tested on linux only:
 jpm build && janet test.janet 
 ```
 
-For now this needs a patched spork that uses polymorphic calls (`:read`,
-`:write`, etc) for stearm I/O instead of depending on the event loop calls
-`ev/read`, `ev/write`, etc:
-
-https://github.com/zevv/spork/tree/polymorph-http
-

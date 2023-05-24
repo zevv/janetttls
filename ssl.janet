@@ -51,3 +51,11 @@
 (defn accept [stream cert key]
   (wrap-stream (net/accept (stream :sock)) :server cert key))
 
+(defn server [host port &opt handler cert key]
+  (pp "server")
+  (def sock (listen host port))
+  (pp sock)
+  (forever 
+    (def client (accept sock cert key))
+    (ev/call (fn [] (handler client)))))
+  
