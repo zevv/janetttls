@@ -13,7 +13,7 @@ struct sslsock {
 
 #define CHECK_SSL(expr, msg) if(!(expr)) janet_panicf("error %s :%s\n", msg, ERR_reason_error_string(ERR_get_error()));
 
-static Janet sslapi_set_ssl(int32_t argc, Janet *argv)
+static Janet openssl_set_tls(int32_t argc, Janet *argv)
 {
     static int initialized = 0;
     if(!initialized) {
@@ -99,7 +99,7 @@ static Janet handle_ssl_error(struct sslsock *ss, int r)
 }
 
 
-static Janet sslapi_write(int32_t argc, Janet *argv)
+static Janet openssl_write(int32_t argc, Janet *argv)
 {
     janet_fixarity(argc, 2);
     struct sslsock *ss = janet_getpointer(argv, 0);
@@ -113,7 +113,7 @@ static Janet sslapi_write(int32_t argc, Janet *argv)
 }
 
 
-static Janet sslapi_read(int32_t argc, Janet *argv)
+static Janet openssl_read(int32_t argc, Janet *argv)
 {
     janet_fixarity(argc, 3);
     struct sslsock *ss = janet_getpointer(argv, 0);
@@ -130,7 +130,7 @@ static Janet sslapi_read(int32_t argc, Janet *argv)
 }
 
 
-static Janet sslapi_close(int32_t argc, Janet *argv)
+static Janet openssl_close(int32_t argc, Janet *argv)
 {
     janet_fixarity(argc, 1);
     struct sslsock *ss = janet_getpointer(argv, 0);
@@ -141,16 +141,16 @@ static Janet sslapi_close(int32_t argc, Janet *argv)
 
 
 static const JanetReg cfuns[] = {
-    {"set-ssl", sslapi_set_ssl, "(sslapi/set_ssl)"},
-    {"write", sslapi_write, "(sslapi/write)"},
-    {"read", sslapi_read, "(sslapi/read)"},
-    {"close", sslapi_close, "(sslapi/close)"},
+    {"set-tls", openssl_set_tls, "(openssl/set-tls)"},
+    {"write", openssl_write, "(openssl/write)"},
+    {"read", openssl_read, "(openssl/read)"},
+    {"close", openssl_close, "(openssl/close)"},
     {NULL, NULL, NULL}
 };
 
 
 JANET_MODULE_ENTRY(JanetTable *env) {
-    janet_cfuns(env, "sslapi", cfuns);
+    janet_cfuns(env, "openssl", cfuns);
 }
 
 

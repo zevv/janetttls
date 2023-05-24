@@ -1,31 +1,31 @@
 
-(import /build/sslapi :as sslapi)
+(import /build/openssl)
 
 # Pump underlying SSL call until it is satisfied; the event queue is abused
 # here by doing 0-byte net/read and net/write on the underlying socket.
 
-(defn- ssl-pump [f stream & args]
-  (def result (f (stream :ssl) ;args))
+(defn- tls-pump [f stream & args]
+  (def result (f (stream :tls) ;args))
   (case result
-    :want-read (do (:read (stream :sock) 0) (ssl-pump f stream ;args))
-    :want-write (do (:write (stream :sock) "") (ssl-pump f stream ;args))
+    :want-read (do (:read (stream :sock) 0) (tls-pump f stream ;args))
+    :want-write (do (:write (stream :sock) "") (tls-pump f stream ;args))
     :syscall (error "syscall error")
     result))
 
 (defn read [stream & args]
-  (ssl-pump sslapi/read stream ;args))
+  (tls-pump openssl/read stream ;args))
 
 (defn chunk [stream & args]
-  (ssl-pump sslapi/read stream ;args))
+  (tls-pump openssl/read stream ;args))
 
 (defn write [stream & args]
-  (ssl-pump sslapi/write stream ;args))
+  (tls-pump openssl/write stream ;args))
 
 (defn close [stream]
-  (sslapi/close (stream :ssl))
+  (openssl/close (stream :tls))
   (:close (stream :sock)))
 
-(def- ssl-proto @{
+(def- tls-proto @{
   :read read
   :chunk chunk
   :write write
@@ -35,9 +35,9 @@
 # Wrap a net/stream in an ssl/stream
 
 (defn- wrap-stream [sock &opt state cert key]
-  (def stream (table/setproto @{ :sock sock } ssl-proto))
+  (def stream (table/setproto @{ :sock sock } tls-proto))
   (if state
-    (set (stream :ssl) (sslapi/set-ssl sock state nil cert key)))
+    (set (stream :tls) (openssl/set-tls sock state nil cert key)))
   stream)
 
 # Public API
@@ -52,9 +52,7 @@
   (wrap-stream (net/accept (stream :sock)) :server cert key))
 
 (defn server [host port &opt handler cert key]
-  (pp "server")
   (def sock (listen host port))
-  (pp sock)
   (forever 
     (def client (accept sock cert key))
     (ev/call (fn [] (handler client)))))

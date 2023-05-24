@@ -1,8 +1,8 @@
-(declare-project :name "sslapi")
+(declare-project :name "openssl")
 
 (declare-native
-  :name "sslapi"
-  :source @["sslapi.c"]
+  :name "openssl"
+  :source @["openssl.c"]
   :lflags @["-lcrypto" "-lssl"]
   :nostatic true
   )
